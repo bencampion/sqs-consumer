@@ -651,6 +651,26 @@ describe('Consumer', () => {
       sandbox.assert.calledOnce(clearIntervalSpy);
     });
 
+    it('fires an error event when an error occurs extending visibility timeout', async () => {
+      const visibilityErr = new Error('Visibility timeout error');
+      sqs.changeMessageVisibility = stubReject(visibilityErr);
+      consumer = new Consumer({
+        queueUrl: 'some-queue-url',
+        region: 'some-region',
+        handleMessage: () => new Promise((resolve) => setTimeout(resolve, 75000)),
+        sqs,
+        visibilityTimeout: 40,
+        heartbeatInterval: 30
+      });
+
+      consumer.start();
+      const [err]: any = await Promise.all([pEvent(consumer, 'error'), clock.nextAsync()]);
+      consumer.stop();
+
+      assert.ok(err);
+      assert.equal(err.message, 'Visibility timeout error');
+    });
+
     it('extends visibility timeout for long running batch handler functions', async () => {
       sqs.receiveMessage = stubResolve({
         Messages: [
@@ -692,6 +712,27 @@ describe('Consumer', () => {
       });
       sandbox.assert.calledOnce(clearIntervalSpy);
     });
+  });
+
+  it('fires an error event when an error occurs extending batch visibility timeout', async () => {
+    const visibilityErr = new Error('Visibility timeout error');
+    sqs.changeMessageVisibilityBatch = stubReject(visibilityErr);
+    consumer = new Consumer({
+      queueUrl: 'some-queue-url',
+      region: 'some-region',
+      handleMessageBatch: () => new Promise((resolve) => setTimeout(resolve, 75000)),
+      batchSize: 3,
+      sqs,
+      visibilityTimeout: 40,
+      heartbeatInterval: 30
+    });
+
+    consumer.start();
+    const [err]: any = await Promise.all([pEvent(consumer, 'error'), clock.nextAsync()]);
+    consumer.stop();
+
+    assert.ok(err);
+    assert.equal(err.message, 'Visibility timeout error');
   });
 
   describe('.stop', () => {
